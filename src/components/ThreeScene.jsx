@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import Tube from "./Tube";
 
 const ThreeScene = () => {
   const mountRef = useRef(null);
@@ -10,11 +11,11 @@ const ThreeScene = () => {
     const w = el.clientWidth;
     const h = el.clientHeight;
 
-    // 1. Scene & Background
+    // 1. Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1e1e1e); // Dark grey background
+    scene.background = new THREE.Color(0x1e1e1e);
     
-    // 2. The Grid
+    // 2. Grid
     const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
     scene.add(grid);
 
@@ -34,9 +35,22 @@ const ThreeScene = () => {
     dir.position.set(5, 10, 5);
     scene.add(dir);
 
-    // 6. Controls (Orbit)
+    // 6. Controls
     const orbit = new OrbitControls(camera, renderer.domElement);
     orbit.enableDamping = true;
+
+    // --- NEW: Add a Static Test Tube ---
+    const testTube = Tube({ 
+      width: 1, 
+      height: 1, 
+      thickness: 0.1, 
+      length: 3, 
+      wireframe: false 
+    });
+    // Lift it up slightly so it sits on the grid
+    testTube.position.y = 0.5; 
+    scene.add(testTube);
+    // -----------------------------------
 
     // Animation Loop
     let raf;
@@ -47,7 +61,6 @@ const ThreeScene = () => {
     };
     animate();
 
-    // Cleanup on unmount
     return () => {
       cancelAnimationFrame(raf);
       renderer.dispose();
