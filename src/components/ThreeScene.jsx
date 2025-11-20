@@ -1,13 +1,12 @@
-import React, { useState, useRef, useImperativeHandle, forwardRef } from "react";
+import React, { useState, useRef, useImperativeHandle, forwardRef, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, TransformControls, Environment, Grid } from "@react-three/drei";
 import * as THREE from "three";
 
-
+// 1. Mesh Component
 const MeshWithControls = ({ meshData, isSelected, onSelect, wireframe, mode, angleSnapDeg, onTransformEnd }) => {
   const meshRef = useRef();
   
-  // Default dimensions
   const w = meshData.width || 1;
   const length = meshData.length || 3;
   const h = meshData.height || 1;
@@ -19,9 +18,14 @@ const MeshWithControls = ({ meshData, isSelected, onSelect, wireframe, mode, ang
           object={meshRef} 
           mode={mode} 
           rotationSnap={angleSnapDeg ? THREE.MathUtils.degToRad(angleSnapDeg) : null}
+          // When user stops dragging, save the new position/rotation to History
           onMouseUp={() => {
             if (meshRef.current) {
-              onTransformEnd(meshData.id, meshRef.current.position, meshRef.current.rotation);
+              onTransformEnd(
+                meshData.id, 
+                meshRef.current.position, 
+                meshRef.current.rotation
+              );
             }
           }}
         />
@@ -52,9 +56,29 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
   const [meshes, setMeshes] = useState([]); 
   const [selectedId, setSelectedId] = useState(null);
 
-  // Helper to update a specific mesh in state
-  const updateMeshState = (id, newPos, newRot) => {
-    setMeshes(prev => prev.map(m => {
+  // --- HISTORY STATE ---
+  // Start with one empty state
+  const history = useRef([[]]); 
+  const historyIndex = useRef(0);
+
+  // Helper: Save current meshes to history stack
+  const saveToHistory = (newMeshes) => {
+    // 1. If we are in the middle of the stack (undid previously), remove the future
+    const currentHistory = history.current.slice(0, historyIndex.current + 1);
+    
+    // 2. Push new state
+    currentHistory.push(newMeshes);
+    
+    // 3. Update refs
+    history.current = currentHistory;
+    historyIndex.current = currentHistory.length - 1;
+    
+    console.log("History Saved. Step:", historyIndex.current);
+  };
+
+  // Helper: Update a specific mesh (Used by Gizmo dragging)
+  const handleTransformEnd = (id, newPos, newRot) => {
+    const updatedMeshes = meshes.map(m => {
       if (m.id === id) {
         return { 
           ...m, 
@@ -63,27 +87,34 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
         };
       }
       return m;
-    }));
+    });
+    
+    setMeshes(updatedMeshes);
+    saveToHistory(updatedMeshes);
   };
 
   useImperativeHandle(ref, () => ({
     addTube: (params) => {
-      // Offset logic so they don't stack
       const xOffset = meshes.length * 1.5; 
       const newMesh = { 
         ...params, 
         position: [xOffset, params.length / 2, 0], 
         rotation: [0, 0, 0] 
       };
-      setMeshes((prev) => [...prev, newMesh]);
+      
+      const nextState = [...meshes, newMesh];
+      setMeshes(nextState);
+      saveToHistory(nextState);
     },
 
     selectObject: (id) => setSelectedId(id),
     
     deleteSelected: () => {
       if (!selectedId) return;
-      setMeshes((prev) => prev.filter(m => m.id !== selectedId));
+      const nextState = meshes.filter(m => m.id !== selectedId);
+      setMeshes(nextState);
       setSelectedId(null);
+      saveToHistory(nextState);
     },
 
     deselect: () => setSelectedId(null),
@@ -91,7 +122,8 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
     // --- MANUAL MOVE (Buttons) ---
     moveSelected: (axis, val) => {
       if (!selectedId) return;
-      setMeshes(prev => prev.map(m => {
+      
+      const nextState = meshes.map(m => {
         if (m.id === selectedId) {
           const newPos = [...m.position];
           const idx = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
@@ -99,14 +131,18 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
           return { ...m, position: newPos };
         }
         return m;
-      }));
+      });
+
+      setMeshes(nextState);
+      saveToHistory(nextState);
     },
 
     // --- MANUAL ROTATE (Buttons) ---
     rotateSelected: (axis, valDeg) => {
       if (!selectedId) return;
       const valRad = THREE.MathUtils.degToRad(valDeg);
-      setMeshes(prev => prev.map(m => {
+      
+      const nextState = meshes.map(m => {
         if (m.id === selectedId) {
           const newRot = [...m.rotation];
           const idx = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
@@ -114,11 +150,35 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
           return { ...m, rotation: newRot };
         }
         return m;
-      }));
+      });
+
+      setMeshes(nextState);
+      saveToHistory(nextState);
     },
 
-    undo: () => {},
-    redo: () => {},
+    // --- UNDO ---
+    undo: () => {
+      if (historyIndex.current > 0) {
+        historyIndex.current--;
+        const prevState = history.current[historyIndex.current];
+        setMeshes(prevState);
+        // If the selected object doesn't exist in the past state, deselect it
+        if (selectedId && !prevState.find(m => m.id === selectedId)) {
+          setSelectedId(null);
+        }
+        console.log("Undo. Step:", historyIndex.current);
+      }
+    },
+
+    // --- REDO ---
+    redo: () => {
+      if (historyIndex.current < history.current.length - 1) {
+        historyIndex.current++;
+        const nextState = history.current[historyIndex.current];
+        setMeshes(nextState);
+        console.log("Redo. Step:", historyIndex.current);
+      }
+    },
   }));
 
   return (
@@ -138,7 +198,8 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
             setSelectedId(mesh.id);
             if (onSelectObject) onSelectObject(mesh.id);
           }}
-          onTransformEnd={updateMeshState} 
+          // Pass the handler to save history after dragging
+          onTransformEnd={handleTransformEnd} 
           wireframe={wireframe}
           mode={mode}
           angleSnapDeg={angleSnapDeg}
