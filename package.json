@@ -3,11 +3,18 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "electron/main.js", 
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview --port 5173",
+    "electron:dev": "concurrently \"npm:dev-server\" \"npm:electron-start\"",
+    "dev-server": "vite",
+    "electron-start": "wait-on http://localhost:5173 && electron electron/main.js",
+    "start": "npm run electron:dev",
+    "build:react": "vite build",
+    "build:electron": "electron-builder",
+    "package:all": "npm run build:react && electron-builder --publish never"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
