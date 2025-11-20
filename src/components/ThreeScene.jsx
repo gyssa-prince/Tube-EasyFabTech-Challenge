@@ -1,69 +1,104 @@
-import React, { useEffect, useRef } from "react";
+import React, { useState, useRef, useImperativeHandle, forwardRef } from "react";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls, Environment, Grid } from "@react-three/drei";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import Tube from "./Tube";
 
-const ThreeScene = () => {
-  const mountRef = useRef(null);
+// 1. Mesh Component
+const MeshWithControls = ({ meshData, isSelected, onSelect, wireframe }) => {
+  const meshRef = useRef();
+  const w = meshData.width || 1;
+  const length = meshData.length || 3;
+  const h = meshData.height || 1;
 
-  useEffect(() => {
-    const el = mountRef.current;
-    const w = el.clientWidth;
-    const h = el.clientHeight;
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1e1e1e);
-    const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
-    scene.add(grid);
-
-    // 3. Camera
-    const camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 1000);
-    camera.position.set(5, 5, 8);
-
-    // 4. Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(w, h);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    el.appendChild(renderer.domElement);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-    const dir = new THREE.DirectionalLight(0xffffff, 1);
-    dir.position.set(5, 10, 5);
-    scene.add(dir);
-
-    const orbit = new OrbitControls(camera, renderer.domElement);
-    orbit.enableDamping = true;
-
-    const testTube = Tube({ 
-      width: 1, 
-      height: 1, 
-      thickness: 0.08, 
-      length: 3, 
-      wireframe: false 
-    });
-    testTube.position.y = 0.5;
-    scene.add(testTube);
-
-    // Animation Loop
-    let raf;
-    const animate = () => {
-      raf = requestAnimationFrame(animate);
-      orbit.update();
-      renderer.render(scene, camera);
-    };
-    animate();
-
-    // Cleanup
-    return () => {
-      cancelAnimationFrame(raf);
-      renderer.dispose();
-      if (el && el.contains(renderer.domElement)) {
-        el.removeChild(renderer.domElement);
-      }
-    };
-  }, []);
-
-  return <div ref={mountRef} style={{ width: "100%", height: "100%" }} />;
+  return (
+    <>
+      {/* TransformControls removed to disable moving */}
+      
+      <mesh
+        ref={meshRef}
+        position={meshData.position || [0, length / 2, 0]}
+        rotation={meshData.rotation || [0, 0, 0]}
+        onClick={(e) => { 
+          e.stopPropagation(); 
+          onSelect(); 
+        }}
+      >
+        <boxGeometry args={[w, length, h]} />
+        <meshStandardMaterial 
+          // Selection is now only indicated by color
+          color={isSelected ? "#007acc" : "#888888"} 
+          wireframe={wireframe} 
+          roughness={0.4} 
+          metalness={0.6} 
+        />
+      </mesh>
+    </>
+  );
 };
+
+// 2. Main Scene Logic
+const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, onSelectObject }, ref) => {
+  const [meshes, setMeshes] = useState([]); 
+  const [selectedId, setSelectedId] = useState(null);
+
+  useImperativeHandle(ref, () => ({
+    addTube: (params) => {
+      // Offset logic
+      const xOffset = meshes.length * 1.5; 
+
+      const newMesh = { 
+        ...params, 
+        position: [xOffset, params.length / 2, 0], 
+        rotation: [0, 0, 0] 
+      };
+      
+      setMeshes((prev) => [...prev, newMesh]);
+    },
+
+    selectObject: (id) => {
+      setSelectedId(id);
+    },
+
+    deleteSelected: () => {
+      if (!selectedId) return;
+      setMeshes((prev) => prev.filter(m => m.id !== selectedId));
+      setSelectedId(null);
+    },
+
+    deselect: () => {
+      setSelectedId(null);
+    },
+
+    // Empty placeholders
+    undo: () => {},
+    redo: () => {},
+    moveSelected: () => {},
+    rotateSelected: () => {},
+  }));
+
+  return (
+    <Canvas shadows camera={{ position: [5, 5, 10], fov: 50 }}>
+      <color attach="background" args={['#050505']} />
+      <Grid infiniteGrid fadeDistance={30} fadeStrength={5} />
+      <ambientLight intensity={0.5} />
+      <pointLight position={[10, 10, 10]} intensity={1} />
+      <Environment preset="city" />
+      
+      {meshes.map((mesh) => (
+        <MeshWithControls
+          key={mesh.id}
+          meshData={mesh}
+          isSelected={mesh.id === selectedId}
+          onSelect={() => {
+            setSelectedId(mesh.id);
+            if (onSelectObject) onSelectObject(mesh.id);
+          }}
+          wireframe={wireframe}
+        />
+      ))}
+      <OrbitControls makeDefault />
+    </Canvas>
+  );
+});
 
 export default ThreeScene;

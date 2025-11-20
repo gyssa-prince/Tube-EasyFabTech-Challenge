@@ -9,51 +9,64 @@ export default function App() {
     width: 1,
     height: 1,
     thickness: 0.1,
-    length: 3
+    length: 1
   });
 
-  const [wireframe, setWireframe] = useState(false);
+  const [wireframe] = useState(false);
   const [angleSnapDeg, setAngleSnapDeg] = useState(45);
   const [transformMode, setTransformMode] = useState("translate");
 
   const [tubes, setTubes] = useState([]);
-
   const sceneApiRef = useRef();
-  const addTube = () => {};
-  const handleSelectTube = () => {};
-  const deleteTube = () => {};
-  const deselect = () => {};
+
+  const addTube = () => {
+    const newId = Date.now();
+    const newName = `Tube ${tubes.length + 1}`;
+    setTubes(prev => [...prev, { id: newId, name: newName, isSelected: false }]);
+    sceneApiRef.current?.addTube?.({ ...params, id: newId });
+  };
+  const handleSelectTube = (id) => {
+    setTubes(prev => prev.map(t => ({ ...t, isSelected: t.id === id })));
+    sceneApiRef.current?.selectObject?.(id);
+  };
+  const deleteTube = () => {
+    sceneApiRef.current?.deleteSelected?.();
+    setTubes(prev => prev.filter(t => !t.isSelected));
+  };
+  
+  const deselect = () => {
+    setTubes(prev => prev.map(t => ({ ...t, isSelected: false })));
+    sceneApiRef.current?.deselect?.();
+  };
+
   const undo = () => {};
   const redo = () => {};
-  const moveObj = () => {};
+  const moveObj = () => {}; 
   const rotateObj = () => {};
 
   return (
     <div className="app-container">
-      <div className="sidebar">
-        <Sidebar
-          params={params}
-          setParams={setParams}
-          addTube={addTube}
-          undo={undo}
-          redo={redo}
-          deleteTube={deleteTube}
-          deselect={deselect}
-          transformMode={transformMode}
-          setTransformMode={setTransformMode}
-          angleSnapDeg={angleSnapDeg}
-          setAngleSnapDeg={setAngleSnapDeg}
-          moveObj={moveObj}
-          rotateObj={rotateObj}
-          wireframe={wireframe}
-          setWireframe={setWireframe}
-          tubes={tubes}
-          onSelectTube={handleSelectTube}
-        />
-      </div>
+      <Sidebar 
+        params={params}
+        setParams={setParams}
+        addTube={addTube}
+        undo={undo}
+        redo={redo}
+        deleteTube={deleteTube}
+        deselect={deselect}
+        transformMode={transformMode}
+        setTransformMode={setTransformMode}
+        angleSnapDeg={angleSnapDeg}
+        setAngleSnapDeg={setAngleSnapDeg}
+        moveObj={moveObj}
+        rotateObj={rotateObj}
+        wireframe={wireframe}
+        tubes={tubes}
+        onSelectTube={handleSelectTube}
+      />
 
       <div className="canvas-wrapper">
-        <ThreeScene
+        <ThreeScene 
           ref={sceneApiRef}
           sharedParams={params}
           wireframe={wireframe}
