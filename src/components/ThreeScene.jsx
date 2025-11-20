@@ -11,11 +11,8 @@ const ThreeScene = () => {
     const w = el.clientWidth;
     const h = el.clientHeight;
 
-    // 1. Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1e1e1e);
-    
-    // 2. Grid
     const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
     scene.add(grid);
 
@@ -29,28 +26,23 @@ const ThreeScene = () => {
     renderer.setPixelRatio(window.devicePixelRatio);
     el.appendChild(renderer.domElement);
 
-    // 5. Lights
     scene.add(new THREE.AmbientLight(0xffffff, 0.5));
     const dir = new THREE.DirectionalLight(0xffffff, 1);
     dir.position.set(5, 10, 5);
     scene.add(dir);
 
-    // 6. Controls
     const orbit = new OrbitControls(camera, renderer.domElement);
     orbit.enableDamping = true;
 
-    // --- NEW: Add a Static Test Tube ---
     const testTube = Tube({ 
       width: 1, 
       height: 1, 
-      thickness: 0.1, 
+      thickness: 0.08, 
       length: 3, 
       wireframe: false 
     });
-    // Lift it up slightly so it sits on the grid
-    testTube.position.y = 0.5; 
+    testTube.position.y = 0.5;
     scene.add(testTube);
-    // -----------------------------------
 
     // Animation Loop
     let raf;
@@ -61,6 +53,7 @@ const ThreeScene = () => {
     };
     animate();
 
+    // Cleanup
     return () => {
       cancelAnimationFrame(raf);
       renderer.dispose();

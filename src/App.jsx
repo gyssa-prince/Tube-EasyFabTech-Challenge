@@ -1,10 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import ThreeScene from "./components/ThreeScene";
-import TubeControls from "./components/TubeControls";
+import Sidebar from "./components/Sidebar";
 import "./index.css";
 
 export default function App() {
-  // The "State" of our tube
   const [params, setParams] = useState({
     type: "square",
     width: 1,
@@ -13,21 +12,58 @@ export default function App() {
     length: 3
   });
 
+  const [wireframe, setWireframe] = useState(false);
+  const [angleSnapDeg, setAngleSnapDeg] = useState(45);
+  const [transformMode, setTransformMode] = useState("translate");
+
+  const [tubes, setTubes] = useState([]);
+
+  const sceneApiRef = useRef();
+  const addTube = () => {};
+  const handleSelectTube = () => {};
+  const deleteTube = () => {};
+  const deselect = () => {};
+  const undo = () => {};
+  const redo = () => {};
+  const moveObj = () => {};
+  const rotateObj = () => {};
+
   return (
     <div className="app-container">
-      {/* Sidebar Control Panel */}
       <div className="sidebar">
-        <div className="header">
-          <h2>TubeJoint</h2>
-        </div>
-        <div className="panel-section">
-          <TubeControls params={params} setParams={setParams} />
-        </div>
+        <Sidebar
+          params={params}
+          setParams={setParams}
+          addTube={addTube}
+          undo={undo}
+          redo={redo}
+          deleteTube={deleteTube}
+          deselect={deselect}
+          transformMode={transformMode}
+          setTransformMode={setTransformMode}
+          angleSnapDeg={angleSnapDeg}
+          setAngleSnapDeg={setAngleSnapDeg}
+          moveObj={moveObj}
+          rotateObj={rotateObj}
+          wireframe={wireframe}
+          setWireframe={setWireframe}
+          tubes={tubes}
+          onSelectTube={handleSelectTube}
+        />
       </div>
 
-      {/* 3D Workspace */}
       <div className="canvas-wrapper">
-        <ThreeScene sharedParams={params} /> 
+        <ThreeScene
+          ref={sceneApiRef}
+          sharedParams={params}
+          wireframe={wireframe}
+          mode={transformMode}
+          angleSnapDeg={angleSnapDeg}
+        />
+
+        <div className="canvas-overlay">
+          Left Click: Select | Right Click: Pan | Wheel: Zoom | Drag: Orbit
+        </div>
       </div>
     </div>
   );
