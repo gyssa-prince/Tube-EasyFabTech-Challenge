@@ -12,23 +12,28 @@ export default function App() {
     length: 1
   });
 
-  const [wireframe] = useState(false);
+  const [wireframe, setWireframe] = useState(false);
   const [angleSnapDeg, setAngleSnapDeg] = useState(45);
   const [transformMode, setTransformMode] = useState("translate");
 
   const [tubes, setTubes] = useState([]);
   const sceneApiRef = useRef();
 
+  // --- 1. ADD ---
   const addTube = () => {
     const newId = Date.now();
     const newName = `Tube ${tubes.length + 1}`;
     setTubes(prev => [...prev, { id: newId, name: newName, isSelected: false }]);
     sceneApiRef.current?.addTube?.({ ...params, id: newId });
   };
+
+  // --- 2. SELECT ---
   const handleSelectTube = (id) => {
     setTubes(prev => prev.map(t => ({ ...t, isSelected: t.id === id })));
     sceneApiRef.current?.selectObject?.(id);
   };
+
+  // --- 3. DELETE ---
   const deleteTube = () => {
     sceneApiRef.current?.deleteSelected?.();
     setTubes(prev => prev.filter(t => !t.isSelected));
@@ -39,10 +44,15 @@ export default function App() {
     sceneApiRef.current?.deselect?.();
   };
 
-  const undo = () => {};
-  const redo = () => {};
-  const moveObj = () => {}; 
-  const rotateObj = () => {};
+  // --- 4. TRANSFORM TOOLS (Wired Up) ---
+  const undo = () => sceneApiRef.current?.undo?.();
+  const redo = () => sceneApiRef.current?.redo?.();
+  
+  // Pass axis ('x','y','z') and value (distance)
+  const moveObj = (axis, val) => sceneApiRef.current?.moveSelected?.(axis, val);
+  
+  // Pass axis ('x','y','z') and value (degrees)
+  const rotateObj = (axis, val) => sceneApiRef.current?.rotateSelected?.(axis, val);
 
   return (
     <div className="app-container">
