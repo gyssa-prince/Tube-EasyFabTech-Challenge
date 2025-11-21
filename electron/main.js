@@ -1,38 +1,43 @@
-const { app, BrowserWindow } = require('electron');
-const path = require('path');
+import { app, BrowserWindow } from 'electron';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Determine if we are in development or production
+// 1. Reconstruct __dirname for ES Modules (Critical for relative paths in build)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// 2. Determine if we are in development or production
 const isDev = !app.isPackaged;
 
 function createWindow() {
-  // Create the browser window
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     title: "TubeJoint Pro",
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false, // Simplified security for local tool
-      devTools: isDev // Enable devTools only in dev mode by default
+      contextIsolation: false,
+      devTools: true, // Keep true to debug if needed
+      webSecurity: false // Optional: helps with some local resource loading issues
     },
-    autoHideMenuBar: true // Hide default menu bar for a cleaner desktop app look
+    autoHideMenuBar: true
   });
 
   if (isDev) {
-    // In development, load from the Vite dev server
-    // We use a timeout or wait-on in the script to ensure Vite is ready
+    // Development
     mainWindow.loadURL('http://localhost:5173');
-    
-    // Open DevTools automatically in dev mode
     mainWindow.webContents.openDevTools();
   } else {
-    // In production, load the built index.html file
-    // Assuming main.js is in /electron/ and build is in /dist/
+    // Production
+    // Use path.join with __dirname to reliably find the sibling 'dist' folder
+    // This works better inside ASAR archives than app.getAppPath()
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    
+    // Keep this open to verify it works, remove later
+    // mainWindow.webContents.openDevTools(); 
   }
 }
 
-// App lifecycle methods
 app.whenReady().then(() => {
   createWindow();
 

@@ -74,8 +74,8 @@ root/
 ### **1. Install Dependencies**
 
 ```
-git clone <your-repo-url>
-cd tube-joint
+git clone https://github.com/gyssa-prince/Tube-EasyFabTech-Challenge.git
+cd Tube-EasyFabTech-Challenge
 npm install
 ```
 
@@ -130,7 +130,6 @@ npm run build:electron
 Electron Builder generates installers / executables in:
 
 ```
-dist/
 release/
 ```
 

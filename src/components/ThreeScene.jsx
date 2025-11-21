@@ -1,15 +1,114 @@
-import React, { useState, useRef, useImperativeHandle, forwardRef, useEffect } from "react";
-import { Canvas } from "@react-three/fiber";
+import React, { useState, useRef, useImperativeHandle, forwardRef, useMemo } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, TransformControls, Environment, Grid } from "@react-three/drei";
 import * as THREE from "three";
 
-// 1. Mesh Component
+// --- 1. TUBE GEOMETRY (HOLLOW) ---
+const TubeGeometry = ({ width, height, length, thickness, isSelected, wireframe }) => {
+  const t = Math.min(thickness, Math.min(width, height) / 2 - 0.005);
+  const color = isSelected ? "#007acc" : "#888888";
+  const materialProps = { 
+    color: color, 
+    wireframe: wireframe, 
+    roughness: 0.4, 
+    metalness: 0.6 
+  };
+
+  return (
+    <group>
+      <mesh position={[(width - t) / 2, 0, 0]}>
+        <boxGeometry args={[t, length, height]} />
+        <meshStandardMaterial {...materialProps} />
+      </mesh>
+      <mesh position={[-(width - t) / 2, 0, 0]}>
+        <boxGeometry args={[t, length, height]} />
+        <meshStandardMaterial {...materialProps} />
+      </mesh>
+      <mesh position={[0, 0, (height - t) / 2]}>
+        <boxGeometry args={[width - 2 * t, length, t]} />
+        <meshStandardMaterial {...materialProps} />
+      </mesh>
+      <mesh position={[0, 0, -(height - t) / 2]}>
+        <boxGeometry args={[width - 2 * t, length, t]} />
+        <meshStandardMaterial {...materialProps} />
+      </mesh>
+    </group>
+  );
+};
+
+// --- 2. NEW: JOINT HIGHLIGHTER ---
+// This component continuously checks for collisions and draws the intersection box
+const JointHighlighter = ({ tubes }) => {
+  const { scene } = useThree();
+  const [joints, setJoints] = useState([]);
+
+  useFrame(() => {
+    // 1. Find all tube groups in the scene
+    const tubeObjects = [];
+    scene.traverse((obj) => {
+      if (obj.name === "tube-group") {
+        tubeObjects.push(obj);
+      }
+    });
+
+    const newJoints = [];
+
+    // 2. Check collisions between every pair
+    for (let i = 0; i < tubeObjects.length; i++) {
+      for (let j = i + 1; j < tubeObjects.length; j++) {
+        const objA = tubeObjects[i];
+        const objB = tubeObjects[j];
+
+        // Compute bounding boxes in world space
+        const boxA = new THREE.Box3().setFromObject(objA);
+        const boxB = new THREE.Box3().setFromObject(objB);
+
+        // 3. If they intersect, calculate the intersection box
+        if (boxA.intersectsBox(boxB)) {
+          const intersection = boxA.clone().intersect(boxB);
+          
+          // Get center and size of the intersection
+          const center = new THREE.Vector3();
+          const size = new THREE.Vector3();
+          intersection.getCenter(center);
+          intersection.getSize(size);
+
+          newJoints.push({ center, size, id: `${objA.uuid}-${objB.uuid}` });
+        }
+      }
+    }
+
+    // Only update state if joints changed to prevent render loops
+    // (Simple check: count change. For clearer visualization we just update)
+    if (newJoints.length !== joints.length || (newJoints.length > 0 && joints.length > 0)) {
+       setJoints(newJoints);
+    }
+  });
+
+  return (
+    <>
+      {joints.map((joint) => (
+        <mesh key={joint.id} position={joint.center}>
+          <boxGeometry args={[joint.size.x + 0.02, joint.size.y + 0.02, joint.size.z + 0.02]} />
+          <meshBasicMaterial color="#ffaa00" transparent opacity={0.5} depthTest={false} />
+          <lineSegments>
+            <edgesGeometry args={[new THREE.BoxGeometry(joint.size.x + 0.02, joint.size.y + 0.02, joint.size.z + 0.02)]} />
+            <lineBasicMaterial color="#ffffff" linewidth={2} />
+          </lineSegments>
+        </mesh>
+      ))}
+    </>
+  );
+};
+
+// --- 3. MESH COMPONENT ---
 const MeshWithControls = ({ meshData, isSelected, onSelect, wireframe, mode, angleSnapDeg, onTransformEnd }) => {
   const meshRef = useRef();
   
   const w = meshData.width || 1;
   const length = meshData.length || 3;
   const h = meshData.height || 1;
+  const thick = meshData.thickness || 0.1;
 
   return (
     <>
@@ -18,20 +117,17 @@ const MeshWithControls = ({ meshData, isSelected, onSelect, wireframe, mode, ang
           object={meshRef} 
           mode={mode} 
           rotationSnap={angleSnapDeg ? THREE.MathUtils.degToRad(angleSnapDeg) : null}
-          // When user stops dragging, save the new position/rotation to History
           onMouseUp={() => {
             if (meshRef.current) {
-              onTransformEnd(
-                meshData.id, 
-                meshRef.current.position, 
-                meshRef.current.rotation
-              );
+              onTransformEnd(meshData.id, meshRef.current.position, meshRef.current.rotation);
             }
           }}
         />
       )}
-      <mesh
+      
+      <group
         ref={meshRef}
+        name="tube-group" // Identifying tag for the highlighter
         position={meshData.position || [0, length / 2, 0]}
         rotation={meshData.rotation || [0, 0, 0]}
         onClick={(e) => { 
@@ -39,44 +135,34 @@ const MeshWithControls = ({ meshData, isSelected, onSelect, wireframe, mode, ang
           onSelect(); 
         }}
       >
-        <boxGeometry args={[w, length, h]} />
-        <meshStandardMaterial 
-          color={isSelected ? "#007acc" : "#888888"} 
-          wireframe={wireframe} 
-          roughness={0.4} 
-          metalness={0.6} 
+        <TubeGeometry 
+          width={w} 
+          height={h} 
+          length={length} 
+          thickness={thick}
+          isSelected={isSelected}
+          wireframe={wireframe}
         />
-      </mesh>
+      </group>
     </>
   );
 };
 
-// 2. Main Scene Logic
+// --- 4. MAIN SCENE ---
 const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, onSelectObject }, ref) => {
   const [meshes, setMeshes] = useState([]); 
   const [selectedId, setSelectedId] = useState(null);
 
-  // --- HISTORY STATE ---
-  // Start with one empty state
   const history = useRef([[]]); 
   const historyIndex = useRef(0);
 
-  // Helper: Save current meshes to history stack
-  const saveToHistory = (newMeshes) => {
-    // 1. If we are in the middle of the stack (undid previously), remove the future
+  const recordHistory = (newMeshesState) => {
     const currentHistory = history.current.slice(0, historyIndex.current + 1);
-    
-    // 2. Push new state
-    currentHistory.push(newMeshes);
-    
-    // 3. Update refs
+    currentHistory.push(newMeshesState);
     history.current = currentHistory;
     historyIndex.current = currentHistory.length - 1;
-    
-    console.log("History Saved. Step:", historyIndex.current);
   };
 
-  // Helper: Update a specific mesh (Used by Gizmo dragging)
   const handleTransformEnd = (id, newPos, newRot) => {
     const updatedMeshes = meshes.map(m => {
       if (m.id === id) {
@@ -88,9 +174,8 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
       }
       return m;
     });
-    
     setMeshes(updatedMeshes);
-    saveToHistory(updatedMeshes);
+    recordHistory(updatedMeshes);
   };
 
   useImperativeHandle(ref, () => ({
@@ -101,10 +186,9 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
         position: [xOffset, params.length / 2, 0], 
         rotation: [0, 0, 0] 
       };
-      
       const nextState = [...meshes, newMesh];
       setMeshes(nextState);
-      saveToHistory(nextState);
+      recordHistory(nextState);
     },
 
     selectObject: (id) => setSelectedId(id),
@@ -114,15 +198,13 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
       const nextState = meshes.filter(m => m.id !== selectedId);
       setMeshes(nextState);
       setSelectedId(null);
-      saveToHistory(nextState);
+      recordHistory(nextState);
     },
 
     deselect: () => setSelectedId(null),
 
-    // --- MANUAL MOVE (Buttons) ---
     moveSelected: (axis, val) => {
       if (!selectedId) return;
-      
       const nextState = meshes.map(m => {
         if (m.id === selectedId) {
           const newPos = [...m.position];
@@ -132,16 +214,13 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
         }
         return m;
       });
-
       setMeshes(nextState);
-      saveToHistory(nextState);
+      recordHistory(nextState);
     },
 
-    // --- MANUAL ROTATE (Buttons) ---
     rotateSelected: (axis, valDeg) => {
       if (!selectedId) return;
       const valRad = THREE.MathUtils.degToRad(valDeg);
-      
       const nextState = meshes.map(m => {
         if (m.id === selectedId) {
           const newRot = [...m.rotation];
@@ -151,32 +230,26 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
         }
         return m;
       });
-
       setMeshes(nextState);
-      saveToHistory(nextState);
+      recordHistory(nextState);
     },
 
-    // --- UNDO ---
     undo: () => {
       if (historyIndex.current > 0) {
         historyIndex.current--;
         const prevState = history.current[historyIndex.current];
         setMeshes(prevState);
-        // If the selected object doesn't exist in the past state, deselect it
         if (selectedId && !prevState.find(m => m.id === selectedId)) {
           setSelectedId(null);
         }
-        console.log("Undo. Step:", historyIndex.current);
       }
     },
 
-    // --- REDO ---
     redo: () => {
       if (historyIndex.current < history.current.length - 1) {
         historyIndex.current++;
         const nextState = history.current[historyIndex.current];
         setMeshes(nextState);
-        console.log("Redo. Step:", historyIndex.current);
       }
     },
   }));
@@ -189,6 +262,9 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
       <pointLight position={[10, 10, 10]} intensity={1} />
       <Environment preset="city" />
       
+      {/* NEW: Highlight Intersections */}
+      <JointHighlighter />
+
       {meshes.map((mesh) => (
         <MeshWithControls
           key={mesh.id}
@@ -198,7 +274,6 @@ const ThreeScene = forwardRef(({ sharedParams, wireframe, mode, angleSnapDeg, on
             setSelectedId(mesh.id);
             if (onSelectObject) onSelectObject(mesh.id);
           }}
-          // Pass the handler to save history after dragging
           onTransformEnd={handleTransformEnd} 
           wireframe={wireframe}
           mode={mode}

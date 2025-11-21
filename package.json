@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "main": "electron/main.js", 
+  "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -15,6 +15,17 @@
     "build:react": "vite build",
     "build:electron": "electron-builder",
     "package:all": "npm run build:react && electron-builder --publish never"
+  },
+  "build": {
+    "appId": "com.tubejoint.pro",
+    "productName": "TubeJoint Pro",
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    }
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
