@@ -71,6 +71,7 @@ export default function App() {
         moveObj={moveObj}
         rotateObj={rotateObj}
         wireframe={wireframe}
+        setWireframe={setWireframe} // <--- Logic added here
         tubes={tubes}
         onSelectTube={handleSelectTube}
       />
