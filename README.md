@@ -150,5 +150,5 @@ release/
 ## 📬 Submission Details
 
 * **GitHub Repository:** https://github.com/gyssa-prince/Tube-EasyFabTech-Challenge.git
-* **Download Executable:** <Google Drive link>
+* **Download Executable:** https://drive.google.com/drive/folders/1Tk5bOmfWliy6VI0-60iP9KHUHkE0u_P5?usp=drive_link
 * **Developer:** GYSSAGARA Prince
